@@ -1,0 +1,16 @@
+.git
+.gitignore
+.pytest_cache
+.work
+scratch
+tests
+docs
+*.zip
+*.docx
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+*.tar
+docker/*.tar

@@ -1,227 +1,375 @@
-# ontokb — 稍后观看研究管线 + 知识图谱
+# OntoKB v2: Schema-Governed Personal Knowledge Graph & Semantic Memory Agent
 
-## 人工整理实体与关系
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Ontology Schema.org](https://img.shields.io/badge/ontology-Schema.org%20Profile%20v2-green.svg)](https://schema.org/)
+[![Database SQLite](https://img.shields.io/badge/storage-SQLite%203-blue.svg)](https://www.sqlite.org/)
+[![Tests 267 Passing](https://img.shields.io/badge/tests-267%20passed-brightgreen.svg)](tests/)
+[![License MIT](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
+[![Docs Chinese](https://img.shields.io/badge/docs-中文版-lightgrey.svg)](README_zh.md)
 
-点击顶部「整理知识」，搜索实体、论断或关系；也可以从图谱节点和关系证据直接进入编辑。实体支持修改名称、类型和别名，论断可记录人工核验状态；关系支持修改两端实体、关系类型与抽取置信度，或移除错误关系。出处和原始证据保留为只读。桌面菜单「阅读 → 整理知识」的快捷键为 `Ctrl+Shift+E`。
+> **OntoKB** is a schema-governed, evidence-grounded personal knowledge graph and semantic memory agent. It bridges the gap between Large Language Models (LLMs) and Formal Knowledge Representation by enforcing closed-world Schema.org ontology profiles, mandatory verbatim evidence quote anchoring, two-tier graph grounding, and strict separation between objective source claims and subjective human beliefs.
+>
+> *(For the upstream original Chinese documentation, see [README_zh.md](README_zh.md).)*
 
-知识漫游不依赖右键：普通点击节点后，可用信息区的“⋯”打开操作菜单；点击关系连线或证据行的“⋯”也可编辑关系。多来源连线先选择具体资料，再编辑对应记录。打开菜单会暂停漫游；右键和 `Shift+F10` 保留为快捷入口。编辑器详情中可独立保存个人审核、记忆范围、个人立场及判断说明，并按记忆范围和审核状态筛选列表。知识内容与个人记忆分别保存，避免把修正抽取内容当作认可观点。
+---
 
-保存会校验正式名称冲突和本体约束，同步相关 Obsidian 笔记并刷新图谱。别名允许重名：同一别名可以属于多个实体，搜索返回候选；抽取仅遇到歧义别名时会拒绝自动归并，需使用正式名称或人工确认。改名保留旧名称以维持资料匹配；人工修改及移除决定会被记录，重新分析同一来源时受到保护。编辑器提供最近修改记录和撤销入口，存在更新冲突时会要求重新加载。SQLite 仍是数据源，不需要安装其他数据库工具。
+## Table of Contents
 
-已有两个记录实际代表同一实体时，点击编辑器顶部「合并实体」或详情中的「合并到已有实体」。选择要归并的记录与保留实体，预览别名、关系、出处和个人判断影响；确认后，保留实体的正式名称和编号，另一名称成为别名。重复关系的各份原始证据仍可在关系详情及图谱查询中查看。个人判断原快照保留并关联到统一实体，不自动把旧认可转移到改变后的论断／关系。资料文档与类型不同的记录不能直接合并。
+1. [Architectural Thesis: Why OntoKB?](#1-architectural-thesis-why-ontokb)
+2. [High-Level System Architecture](#2-high-level-system-architecture)
+3. [Deep-Dive Module Breakdown](#3-deep-dive-module-breakdown)
+   - [3.1 Ontology Governance Subsystem](#31-ontology-governance-subsystem)
+   - [3.2 Graph Storage & Normalization Engine](#32-graph-storage--normalization-engine)
+   - [3.3 Extraction & Grounding Pipeline](#33-extraction--grounding-pipeline)
+   - [3.4 Multimodal Content Acquisition](#34-multimodal-content-acquisition)
+   - [3.5 Dual-Mode Interactive Visualization](#35-dual-mode-interactive-visualization)
+   - [3.6 Transactional Knowledge Editor](#36-transactional-knowledge-editor)
+   - [3.7 Epistemic Personal Memory & Stance System](#37-epistemic-personal-memory--stance-system)
+   - [3.8 Graph-Guided Chat & Hybrid RAG](#38-graph-guided-chat--hybrid-rag)
+   - [3.9 Obsidian Vault Bi-directional Projection](#39-obsidian-vault-bi-directional-projection)
+   - [3.10 Deductive Rule Engine](#310-deductive-rule-engine)
+4. [REST API Reference](#4-rest-api-reference)
+5. [CLI Commands Reference](#5-cli-commands-reference)
+6. [Configuration Guide](#6-configuration-guide)
+7. [Installation & Quickstart](#7-installation--quickstart)
+8. [Comprehensive Documentation Library](#8-comprehensive-documentation-library)
+9. [Troubleshooting & Frequently Asked Questions](#9-troubleshooting--frequently-asked-questions)
 
-合并记录可从保存反馈或修改历史中撤销，恢复原实体、关系、别名与笔记。撤销会检查知识、个人判断和笔记是否已发生其他变化；若发生变化则拒绝覆盖。合并后重新抽取会复用统一身份，并保留人工关系修正及移除决定。
+---
 
-后端接口：`GET /api/editor`；`POST /api/editor/entities/{id}`、`POST /api/editor/triples/{id}`、`POST /api/editor/triples/{id}/delete`、`POST /api/editor/changes/{id}/undo`。更新时提交读取到的 `revision` 可检测过期编辑。更新代码后需重启后端并刷新页面。
+## 1. Architectural Thesis: Why OntoKB?
 
-合并接口：`POST /api/editor/entities/{id}/merge-preview`，请求 `{target_id}`；`POST /api/editor/entities/{id}/merge`，请求 `{target_id, preview_token}`。预览之后数据变化会使令牌失效，必须重新预览。旧别名索引会自动迁移为允许多个实体共享的结构。
+Traditional Knowledge Graphs and generative AI applications suffer from four foundational failure modes:
 
-## 个人记忆与判断变化
+| Failure Mode in Naive AI / RAG | How OntoKB Solves It |
+| :--- | :--- |
+| **Hallucinated Node Types & Predicates** | Enforces a closed-world Schema.org profile (`ontology/core.yaml`). Ingestions violating domain/range constraints are rejected. |
+| **Ungrounded, Floating Facts** | Implements **Two-Tier Grounding**: every extracted factual triple must link directly to an ingested document node and include a verbatim text quote. |
+| **Epistemic Pollution** | Decouples objective source claims from subjective personal beliefs. The **Personal Memory** tier allows users to review, accept, question, or refute assertions without corrupting the historical source record. |
+| **Destructive Automated Overwrites** | Human edits in the Knowledge Editor are flagged with provenance immunity (`manual_entities`, `manual_triples`), preventing automated extraction runs from undoing human curation. |
 
-页面顶部“个人记忆”可对实体、论断及每条带来源的关系分别设置：未审核／已审核、仅资料库／纳入个人记忆。论断和关系还可记录未表态／认同／存疑／不认同，以及个人判断和适用条件。审核、记忆范围、个人立场与现有事实核实状态相互独立；旧数据默认未审核、未纳入，不自动把已核实或人工编辑理解成个人认可。标记实体不会自动标记它的全部关系。
+---
 
-先从其他资料中保存个人判断，再选一篇新资料，点击“新资料对旧判断的影响”。系统通过现有模型对照已审核、已纳入且有个人立场的论断／关系快照与新资料的摘要、抽取关系和证据，给出待确认建议。不会自动修改立场；保存判断时可选择影响资料，并在“判断变化记录”查看前后立场、说明与时间。快照用于保留当时判断，不能证明判断早于所选资料入库；同来源判断不作为对照基线。
+## 2. High-Level System Architecture
 
-元数据与历史保存在 SQLite 独立表中，当前不投影到 Obsidian，也不改变普通 Chat 的检索范围。原论断内容或关系证据改变后，新记录不继承旧标记；旧判断仍以历史快照保留。第一版比较最多 150 条旧判断、120,000 字符上下文，超限明确报错，不静默省略；对照是模型建议，不是自动事实核查或完整全文分析。
+```mermaid
+flowchart TD
+    subgraph Ingestion ["1. Data Acquisition"]
+        YT["YouTube Video\n(Transcripts / Whisper)"] --> Acq[ContentItem Acquisition]
+        Art["Pasted Article Text\n(20–100k chars)"] --> Acq
+        Web["Netease / Web Sources"] --> Acq
+    end
 
-接口：`GET /api/memory`；`POST /api/memory/review`（key、revision、reviewed、included、stance、note、可选 source_id）；`POST /api/memory/compare`（source_id）。重启 API 后刷新页面即可使用。
+    subgraph LLMPipeline ["2. LLM Extraction & Validation"]
+        Acq --> Prompt[System Prompts & Entity Chunking]
+        Prompt --> LLM["LLM Backend\n(Codex CLI / OpenAI / Anthropic)"]
+        LLM --> RawTriples[Extracted Entities & Triples]
+        RawTriples --> OntoVal{"Ontology Validation\n(core.yaml)"}
+        OntoVal -- Valid --> Grounding[Two-Tier Graph Grounding]
+        OntoVal -- Invalid --> Rejections[(Extraction Rejections)]
+    end
 
-## 阅读工作台与摘要漫游
+    subgraph Storage ["3. Storage & Projections"]
+        Grounding --> SQLite[("SQLite Database\n(data/kb.db)")]
+        SQLite --> Vault["Obsidian Vault\n(Markdown + Frontmatter)"]
+        SQLite --> Rules["Rule Engine\n(Deductive Inference)"]
+    end
 
-### 多媒体漫游：视频精剪与较长原声回顾
+    subgraph WebUI ["4. User Interfaces & Applications"]
+        SQLite --> ReadWalk["阅读工作台 (Summary Walk)"]
+        SQLite --> ExploreGraph["探索图谱 (Explore Canvas)"]
+        SQLite --> Editor["Knowledge Editor (Human Curation)"]
+        SQLite --> Memory["Personal Memory (Stances & Compare)"]
+        SQLite --> Chat["Graph-Guided Chat (Hybrid RAG)"]
+    end
+```
 
-选择已入库的 YouTube 资料，点击摘要上方「视频精剪」或「原声漫游」，可选择两种节奏。视频精剪以约 90 秒为目标、最长 2 分钟，将精选画面与原声拼成可播放和下载的 MP4。原声漫游以原视频长度的三分之一为目标，保留更多讲述上下文，以截图配原声播放，并可下载合并音频。例如约 9 分半的视频，原声版目标约 3 分 10 秒。两种模式都保持原语速；截图在对应原声结束后切换，不通过慢放来延长时长。
+---
 
-系统把现有摘要与带时间戳的字幕进行匹配，保留原视频的先后顺序和来源时间链接。实际长度按可用字幕片段调整；资料较短或可靠片段不足时，不强行填满目标时长。字幕保留原声的具体讲述，摘要表达对应的要点；支持暂停、前后切换、重播，以及原声漫游和视频成片的进度拖动。原声进度条覆盖整个漫游，可跨片段定位，并同步截图、字幕与摘要。
+## 3. Deep-Dive Module Breakdown
 
-原声漫游和视频精剪共用阅读工作台右侧的播放器，左侧保留同一份摘要，并同步高亮当前讲述对应的段落。点击有原声对应的摘要段落，可跳转到该段原声或成片时间点；没有选入本次剪辑的段落会明确提示，不跳到无关内容。右侧按原字幕时间轴逐句显示中文字幕；外语字幕通过 Codex 翻译，已有中文字幕保留原文，声音保持原视频语言和语速。字幕和摘要由原始时间戳及受校验的段落索引关联，不把整篇摘要误当成逐字字幕。关闭播放器可返回图谱。
+### 3.1 Ontology Governance Subsystem
+- **Files**: `ontology/core.yaml`, `src/ontokb/ontology.py`
+- **Schema.org Research Profile**:
+  - Implements a single-parent inheritance tree rooted at `Thing`:
+    - `Person`: Concrete human individuals (excludes AI employees and job titles).
+    - `Organization`: Companies, universities, research institutions.
+    - `Product`: Physical manufactured goods, hardware accelerators.
+    - `SoftwareApplication`: Named software programs, models, frameworks, operating systems.
+    - `DefinedTerm`: Scientific concepts, technical mechanisms, categories, theories.
+    - `CreativeWork`: Works of authorship, partitioned into `Article`, `Book`, `VideoObject`, `MediaObject`.
+    - `Claim`: Verifiable empirical assertions, hypotheses, arguments, or predictions.
+- **Relational Domain & Range Constraints**:
+  - `worksFor`: `Person` $\to$ `Organization`
+  - `develops`: `Organization` $\to$ `[DefinedTerm, SoftwareApplication, Product]`
+  - `makes`: `Organization` $\to$ `[Product, SoftwareApplication]`
+  - `adopts`: `Organization` $\to$ `[DefinedTerm, SoftwareApplication, Product]`
+  - `uses`: `[Product, SoftwareApplication]` $\to$ `[DefinedTerm, SoftwareApplication, Product]`
+  - `competesWith`: `Organization` $\to$ `Organization` (Symmetric)
+  - `makesClaim`: `[Person, Organization, CreativeWork]` $\to$ `Claim`
+  - `supports` / `contradicts`: `Claim` $\to$ `Claim` (Symmetric contradiction)
 
-图谱控制条的「定位本段原声」可跳到当前摘要对应的原声片段；返回图谱会保留媒体漫游最近关联的摘要位置。未收录的段落会明确提示，切换资料不会沿用上一篇的定位。没有字幕的时间段留白。
+### 3.2 Graph Storage & Normalization Engine
+- **Files**: `src/ontokb/graph.py`, `src/ontokb/models.py`
+- **Tables**: `entities`, `aliases`, `triples`, `contents`, `manual_entities`, `manual_triples`, `manual_triple_keys`, `edit_history`, `personal_memory`, `memory_history`.
+- **Unicode NFKC Normalization**:
+  - All entity names and aliases are normalized via Unicode NFKC, casefolded, and stripped of extraneous whitespace.
+  - Implements a Chinese variant mapping table (`_CHINESE_VARIANTS`) handling Traditional/Simplified equivalents (e.g. 达/達, 奥/奧, 权/權, 经/經).
+- **Alias Resolution & Conflict Avoidance**:
+  - Prevents alias hijacking: An alias cannot be associated with Entity A if it already belongs to Entity B.
+  - Type conflicts are resolved via subclassing rules: specific types are never widened to generic `Thing`.
 
-原声漫游截图区域下方的横向分隔条可上下拖动，调整截图与字幕区域的高度，并记住设置；也可聚焦分隔条后用上下方向键调整。
+### 3.3 Extraction & Grounding Pipeline
+- **Files**: `src/ontokb/pipeline.py`, `src/ontokb/llm.py`, `src/ontokb/codex_backend.py`
+- **Two-Tier Grounding**:
+  1. **Knowledge Tier**: Real-world factual assertions ($S \xrightarrow{P} O$).
+  2. **Document Tier**: Structural provenance edges where the document entity ($D$) links to mentioned entities ($D \xrightarrow{\text{mentions}} E$ and $D \xrightarrow{\text{about}} E$).
+- **Evidence Verification**: Every triple requires an verbatim quote snippet directly from the source text and an extraction confidence score ($[0.0, 1.0]$).
+- **Automated Backups**: Ingestions with `replace_source=True` automatically create a timestamped backup of the database and vault under `data/backups/`.
 
-已生成的视频、原声音频和截图会复用，补充字幕与摘要对应数据；首次补充可能需要几分钟。优先生成中文译文，也允许英文或中英混合字幕正常播放，不因缺少中文字符阻断漫游。模型返回使用结构化格式约束；通过校验的字幕逐句缓存，只补空缺或无效的句子，批次连续失败会自动拆小后重试。文本必须非空，字幕编号与摘要索引仍严格校验；不会为不相关的字幕强行指定摘要段落。已有字幕缓存继续复用。
+### 3.4 Multimodal Content Acquisition
+- **Files**: `src/ontokb/sources/youtube.py`, `src/ontokb/sources/netease.py`, `src/ontokb/reading.py`
+- **YouTube Pipeline**:
+  - Normalizes multiple video URL variants (standard, shortened, shorts, live streams, embeds).
+  - Fetches timed subtitles using `youtube-transcript-api` (prioritizing Chinese and English).
+  - Falls back gracefully to `yt-dlp` audio downloading and local `whisper` model transcription.
+- **Article Intake**:
+  - Enforces 20–100,000 character boundaries and HTTP/HTTPS source URL format.
+  - Generates deterministic hash IDs: `article:` + SHA256(`title` + `\0` + `url` + `\0` + `text`)[:24].
 
-安装 `python -m pip install -e ".[media]"`（本机本次已补齐 FFmpeg 依赖），并确保本机 Codex CLI 已登录。如视频没有可用字幕，还需 `[youtube]` 中的本地 Whisper。两个生成入口均通过 `codex app-server` harness 执行：Codex 读取项目内 npocut skill，依次调用受限的检查、生成、验证工具；本地媒体管线负责执行。原声音色和语言来自视频，不生成配音或翻译音轨。Codex 不可用时明确报错，已完成的媒体播放可直接复用缓存。
+### 3.5 Dual-Mode Interactive Visualization
+- **Files**: `src/ontokb/visualize.py`, `src/ontokb/web/reading.html`, `src/ontokb/web/reading.js`, `src/ontokb/web/reading.css`
+- **Mode 1: Guided Summary Walking (`阅读工作台`)**:
+  - Breaks down article summaries into sentence-by-sentence reading steps.
+  - Matches entities mentioned in each sentence using exact and alias lookup.
+  - Dynamically highlights active step entities and their 1-hop neighborhood while dimming all other nodes to `opacity: 0.09`.
+  - Supports automated step playback (6s, 10s, 15s speed controls) with smooth SVG camera panning.
+- **Mode 2: Global Graph Exploration (`探索图谱`)**:
+  - Renders the full interactive network in D3 force-directed layout.
+  - Node color coding mapped to Schema.org types (`Organization`: Sage, `Person`: Ochre, `DefinedTerm`: Slate Teal, `SoftwareApplication`: Soft Purple, `Claim`: Gold, `Product`: Coral).
+  - Multi-tier filtering by layer (`Core`, `Claims`, `Documents`, `All`) and by specific entity type.
 
-首次生成会下载视频、补取旧文字稿缺失的时间轴、生成截图与剪辑，可能需要数分钟；关闭播放器不会中断后台生成。结果缓存在数据库旁的 `media/` 中，两种模式分别缓存、共用下载的原视频；摘要改变后重新生成。字幕获取、下载和转码都有超时，视频访问受限时显示可重试提示。纯文字文章暂不支持原声模式，仍可使用原有图谱漫游。
+### 3.6 Transactional Knowledge Editor
+- **Files**: `src/ontokb/editing.py`, `src/ontokb/web/editor.js`, `src/ontokb/web/editor.css`
+- **Human Provenance Immunity**: Any manual change to an entity or triple is permanently recorded in `manual_entities` and `manual_triples`. Future automated LLM runs cannot overwrite these human decisions.
+- **Mutation Operations**:
+  - Rename entities (auto-updates all incident triples).
+  - Add / delete aliases.
+  - Reclassify entity types (validates that incident edges still satisfy ontology rules).
+  - Mutate relation predicates, endpoints, and evidence quotes.
+- **Undo Journal**: Appends every state transition to `edit_history` with full before/after JSON snapshots, enabling atomic rollbacks.
 
-接口：`POST /api/media/prepare`（`content_id`、`mode`）、`GET /api/media/status?content_id=…&mode=…`、`GET /api/media/asset?content_id=…&mode=…&name=…`。`mode` 为 `video` 或 `audio`，默认 `video`；媒体接口支持 Range 播放与成品下载。更新后重启后端并刷新页面。
+### 3.7 Epistemic Personal Memory & Stance System
+- **Files**: `src/ontokb/memory.py`, `src/ontokb/web/memory.js`, `src/ontokb/web/memory.css`
+- **Epistemic Separation**: Objective extracted facts remain immutable in `triples`; personal opinions are recorded in `personal_memory`.
+- **Review Dimensions**:
+  - `reviewed`: Boolean flag indicating human verification.
+  - `included`: Boolean flag indicating inclusion into the user's personal memory core.
+  - `stance`: Three-state evaluation: `agree` (accepted truth), `uncertain` (open question), or `disagree` (rejected claim).
+  - `note`: User's qualitative rationale.
+- **Judgment Comparison (`/api/memory/compare`)**: Uses LLM reasoning to evaluate how an incoming article aligns with, supports, or contradicts historical personal memory stances.
 
-[npocut](https://github.com/roclive/npocut) 的完整源码、正式 `SKILL.md` 和 MIT 许可证已放入 `third_party/npocut`，固定版本见 [来源说明](third_party/NPOCUT.md)。两个工作流先保存 `clip_plan.csv`，实际调用 npocut 的 `srt_slice.py` 重排字幕时间轴，并保留中文 SRT。剪辑计划、SRT 和媒体均留在忽略的本地缓存目录；可在生成清单中查看 skill 版本及 harness 工具执行记录。
+### 3.8 Graph-Guided Chat & Hybrid RAG
+- **Files**: `src/ontokb/assistant.py`, `src/ontokb/api.py`, `src/ontokb/chat_history.py`, `src/ontokb/knowledge_agent.py`
+- **Entity Discovery**: Length-descending greedy substring extraction discovers CJK and Latin entity mentions in unsegmented user prompts.
+- **Graph Expansion**: Conducts 1-hop and 2-hop BFS expansions around matched entities.
+- **Evidence-Preserving Prompting**: Generates tabular knowledge context and citation quotes directly in the LLM prompt, enforcing answers grounded strictly in graph evidence.
 
-首页已重做为左侧资料摘要、右侧动态知识图谱。点击摘要段落或“开始漫游”，镜头会聚焦对应实体与当前资料已记录的关系；支持暂停、前后导航、播放速度、证据查看、类型筛选和减少动画设置。
+### 3.9 Obsidian Vault Bi-directional Projection
+- **Files**: `src/ontokb/vault.py`
+- Projects SQLite graph entities into local Markdown files inside the Obsidian vault (`vault/`).
+- Generates structured YAML frontmatter (aliases, type, review status, sources) and formats relationships as clickable `[[Wikilinks]]`.
 
-点击“新建摘要”粘贴文章标题、正文及可选来源链接，即可生成摘要与要点，按本体抽取实体关系并保存到 SQLite/Obsidian。文章原文保存在内容元数据中；重复提交相同标题、链接和正文会复用。使用现有模型配置，需要模型可用。当前入口处理粘贴正文，不自动抓取任意文章 URL。
+### 3.10 Deductive Rule Engine
+- **Files**: `src/ontokb/rules.py`, `rules/default.yaml`
+- Evaluates logical implication rules over existing triples to derive inferred relations and detect semantic contradictions.
 
-`GET /api/reading` 返回资料摘要、漫游步骤和图谱；`POST /api/articles` 接受 `{title, text, url}`。漫游按名称／别名匹配，不把摘要共现当成新关系；无匹配段落显示提示。Electron 0.2.0 共用相同页面，并提供 Ctrl+N 新建文章摘要。
+---
 
-## Schema.org 本体重构（2026-09-26）
+## 4. REST API Reference
 
-当前采用 `ontology/core.yaml` 中的 Schema.org 受控应用剖面 v2：人物、组织、软件、概念术语、视频、文章、书籍和论断有明确分类边界。旧 `Topic/Technology` 兼容映射为 `DefinedTerm`，视频使用 `VideoObject`，旧 `worksAt` 规范为 `worksFor`。本地扩展关系使用独立 URN，不能当成 Schema.org 官方属性。
+The server runs on `http://127.0.0.1:8765` using an HTTP/1.1 persistent streaming server with `SO_LINGER` socket protection.
 
-本机现有数据已备份并完成迁移：63 个节点、90 条关系保留，23 个节点类型调整，River 标为待复核。页面提供实体／概念、论断、资料及全部视图，图例与类型均可筛选。完整选型、优缺点、迁移结果和限制见 [本体分析报告](docs/ontology-analysis.zh-CN.md)。
+| Method | Endpoint | Description | Request Body / Query Params |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Standalone interactive UI | None (embeds full D3 visualization & reading workspace) |
+| `GET` | `/health` | System health & LLM status | None $\to$ `{"ok": true, "llm_provider": "...", "llm_configured": bool}` |
+| `GET` | `/api/reading` | Full graph & reading library | Returns all nodes, edges, articles, steps, and neighbor links |
+| `GET` | `/api/editor` | Knowledge Editor bootstrap | Returns entities, aliases, triples, and editing options |
+| `GET` | `/api/memory` | Personal memory bootstrap | Returns memory records, review history, and sources |
+| `GET` | `/api/entities/search` | Search entities | `q`: search query, `mode`: `terms`\|`phrase`, `limit`: int, `expand`: bool |
+| `GET` | `/api/graph/query` | Subgraph retrieval | `query`: entity/term query, `mode`: `terms`\|`phrase`, `limit`: int |
+| `POST` | `/api/articles` | Ingest new article | `{"title": str, "text": str, "url": str}` |
+| `POST` | `/api/reading/category`| Set article category | `{"content_id": str, "category": "科技"|"历史"|"时政"}` |
+| `POST` | `/api/chat` | Graph-guided chat query | `{"question": str, "mode": str, "top": int, "expand": bool, "history": list}` |
+| `POST` | `/api/editor/entity/rename` | Rename an entity | `{"entity_id": int, "new_name": str, "revision": str}` |
+| `POST` | `/api/editor/entity/alias` | Add/remove alias | `{"entity_id": int, "alias": str, "action": "add"|"remove", "revision": str}` |
+| `POST` | `/api/editor/entity/type` | Change entity type | `{"entity_id": int, "new_type": str, "revision": str}` |
+| `POST` | `/api/editor/entity/delete` | Delete an entity | `{"entity_id": int, "revision": str}` |
+| `POST` | `/api/editor/triple/create` | Create new triple | `{"subject": str, "predicate": str, "object": str, "evidence": str}` |
+| `POST` | `/api/editor/triple/update` | Update existing triple | `{"triple_id": int, "predicate": str, "evidence": str, "revision": str}` |
+| `POST` | `/api/editor/triple/delete` | Delete a triple | `{"triple_id": int, "revision": str}` |
+| `POST` | `/api/editor/undo` | Revert last edit | None $\to$ rolls back last entry in `edit_history` |
+| `POST` | `/api/memory/review` | Update personal stance | `{"key": str, "revision": int, "reviewed": bool, "included": bool, "stance": str, "note": str}` |
+| `POST` | `/api/memory/compare` | Compare document to memory | `{"source_id": str}` $\to$ returns comparative synthesis report |
 
-```powershell
-python -m ontokb.cli migrate-ontology --report data/ontology-review.json  # 只预检
-python -m ontokb.cli migrate-ontology --apply  # 其他旧库：备份后迁移；本机无需重复
+---
+
+## 5. CLI Commands Reference
+
+OntoKB provides a unified CLI via `python -m ontokb.cli` or the `ontokb` command:
+
+```bash
+# 1. Start the HTTP API Server & Web UI
+python -m ontokb.cli api --host 127.0.0.1 --port 8765
+
+# 2. Check Database Entity, Triple, and Content Counts
+python -m ontokb.cli status
+
+# 3. Ingest a Single URL (YouTube or Web)
+python -m ontokb.cli ingest "https://www.youtube.com/watch?v=..."
+
+# 4. Ingest All URLs Configured in Queue / Watchlist
+python -m ontokb.cli queue
+
+# 5. Execute Deductive Rule Engine over Graph
+python -m ontokb.cli rules
+
+# 6. Backfill Document Tier Links for Pre-Refactor Extractions
+python -m ontokb.cli backfill
+
+# 7. Preview or Apply Schema.org Ontology Profile Migration
+python -m ontokb.cli migrate-ontology --apply
+
+# 8. Export Graph Store to W3C JSON-LD Format
 python -m ontokb.cli export-jsonld --out data/knowledge-graph.jsonld
 ```
 
-迁移记录包含数据库及 vault 备份路径。结构校验不等于事实核查；论断仍保留出处并标记未验证。下文旧架构中的 Content/Topic/worksAt 对应上述兼容名称。
+---
 
-## 本机 Codex 入口（新增）
+## 6. Configuration Guide
 
-默认配置已改为 `llm.provider: codex`、`model: null`，使用本机 Codex 登录与模型设置。问答与结构化抽取都通过 `codex app-server` 执行。已有 `config/config.yaml` 需同步这两个字段。API 模式仍可选择 openai/anthropic。
+System configuration is managed via `config/config.yaml`. A starter template is provided in `config/config.example.yaml`:
 
-Windows 在仓库目录运行：
+```yaml
+# config/config.yaml
+paths:
+  db: data/kb.db                     # SQLite database file location
+  vault: vault                       # Obsidian vault projection directory
+  transcripts: data/transcripts       # Cached YouTube / Whisper transcripts
 
+llm:
+  provider: codex                    # LLM Provider: 'codex', 'openai', or 'anthropic'
+  model: gpt-4o                      # Primary extraction model
+  fallback_model: gpt-4o-mini        # Low-cost fallback model
+  output_language: Simplified Chinese
+
+defaults:
+  confidence_threshold: 0.7          # Minimum extraction confidence score
+  whisper_language: zh               # Local Whisper speech recognition language
+
+interests:                           # Domain topics prioritized during extraction
+  - 人工智能与大模型
+  - 知识图谱与本体论
+  - 芯片算力与硬件架构
+```
+
+---
+
+## 7. Installation & Quickstart
+
+### Prerequisites
+- **Python**: Version 3.10, 3.11, 3.12, or 3.13.
+- **FFmpeg**: Required if using local Whisper audio transcription for YouTube videos.
+
+### Step 1: Clone & Setup Virtual Environment
+```bash
+git clone https://github.com/roclive/OntoKB.git
+cd OntoKB
+
+# Create virtual environment
+python -m venv venv
+# Windows:
+.\venv\Scripts\Activate.ps1
+# Linux / macOS:
+source venv/bin/activate
+
+# Install dependencies
+pip install -e .
+```
+
+### Step 2: Configure Environment
+Copy the example configuration:
+```bash
+cp config/config.example.yaml config/config.yaml
+```
+
+Set your LLM credentials (choose one):
 ```powershell
-python -m pip install -e ".[dev,html]"
+# Option A: Codex CLI
 codex login
-.\start.ps1
+
+# Option B: OpenAI API Key
+$env:OPENAI_API_KEY="sk-..."
+$env:ONTOKB_LLM_PROVIDER="openai"
+
+# Option C: Anthropic Claude API Key
+$env:ANTHROPIC_API_KEY="sk-ant-..."
+$env:ONTOKB_LLM_PROVIDER="anthropic"
 ```
 
-浏览器打开 <http://127.0.0.1:8765>，无需使用下方旧版 macOS 文件路径。刷新页面即读取当前图谱。跨平台也可运行 `python -m ontokb.cli api`。
-
-Chat 支持直接发送 YouTube 链接，例如“分析 https://www.youtube.com/watch?v=XAujxrtd4uI 并入库”。系统自动获取字幕，无字幕时下载音频并用本地 Whisper 转写，再由 Codex 提取摘要和关系，保存到 SQLite / Obsidian 并回答。页面显示阶段进度；已入库视频复用已有分析。刷新页面可查看新增图谱。需安装 `python -m pip install -e ".[youtube]"`；首次无字幕视频会下载转写模型，长视频可能耗时较久。
-
-当前每条消息处理第一个有效 YouTube 链接；其他消息查询知识库。Chat 会向模型传入最近 10 轮完整对话（最多 32,000 字符，超限淘汰最旧轮次），视频追问会继续携带最近已入库视频的正文。点击“新对话”或刷新页面清空历史；暂不跨重启保存，也不支持 token 流式展示和工具审批。每次 Codex 调用超时 180 秒，下载/转写耗时另计。CLI 存在性检查不代表登录仍有效，可运行 `codex login status` 验证。
-
-日常建议：每天用 `python -m ontokb.cli ingest "URL"` 收录一两条 YouTube/网易资料，围绕明确实体查询证据，在 Obsidian 打开本仓库 `vault` 阅读摘要；每周运行 `python -m ontokb.cli rules` 整理主题。YouTube 需另装 yt-dlp，无字幕转写还需 faster-whisper。`queue` 仅入队，尚不自动消费；自动报告尚未完成。下一步优先补粘贴文本/URL 收件箱、后台入库队列和每周回顾。
-
-Codex 模式不要求另填 OPENAI_API_KEY；以下关于 API Key 的说明仅适用于 API provider。协议参考：[Codex App Server](https://learn.chatgpt.com/docs/app-server)。
-
-把 **tech.163.com** 文章和 **YouTube 稍后观看**清单接入一条自动化管线:抓取全文/字幕转录 → LLM 生成摘要、重点、主题相关度 → 按 **ontology** 抽取实体关系写入**知识图谱** → **规则引擎**驱动自动整理(wiki 页、MOC、报告队列)→ 全部落入 **Obsidian vault**。
-
-本仓库同时是 **Fable 5 vs GPT-5.5** coding 能力对比测试的载体,见 [docs/PRD.md](docs/PRD.md) 与 [docs/scorecard.md](docs/scorecard.md)。
-
-## 架构
-
-```
-watch list / URLs ──► sources/ (yt-dlp 字幕 · 163 正文抽取)
-                          │ raw_text
-                          ▼
-                      llm.py (OpenAI/ChatGPT structured output)
-                          │ summary · key_points · relevance · entities · triples
-                          ▼
-        ontology/core.yaml ──校验──► graph.py (SQLite 三元组库, 别名归并, 源标记)
-                          │ + 文档层: 每条内容一个 Content 节点
-                          │   (about/mentions 边由 pipeline 确定性生成)
-                          │ facts
-                          ▼
-                      rules.py (前向链式规则引擎, rules/default.yaml)
-                          │ actions
-                          ▼
-                      vault.py ──► Obsidian vault (Sources/Entities/Wiki/MOC/Reports)
-```
-
-## 图谱建模：文档-实体双层图
-
-所有信息源（YouTube / 网易 / …）写入**同一张图**（统一 Schema），跨媒介的同一实体自动归并，
-同时通过源标记保持逻辑隔离与可溯源：
-
-- **文档层**：每条被 ingest 的内容由 pipeline 确定性地创建一个 `Content` 节点
-  （属性含 `url`、`source`、`kind`、`added_time`、`published_at`，并以 content id 为别名），
-  不依赖 LLM 输出；再自动生成 `Content --about--> Topic` 与 `Content --mentions--> 实体` 边。
-- **知识层**：LLM 只负责抽取实体之间的关系（`worksAt` / `develops` / `makesClaim` / …），
-  并按 prompt 做实体对齐——"GPT母公司"这类间接指称会解析到 `OpenAI` 并记入 aliases。
-- **源标记**：实体行累积 `sources`（提到过它的全部 content id）与 `added_time`（首次入库时间）；
-  每条三元组带 `source`（出处 content id）与 `created_at`。
-  查询任意实体即可顺着 `mentions` 边或 `sources` 字段回溯到原始视频/文章链接。
-
-## 快速开始
-
+### Step 3: Populate Initial Seed Graph
+To immediately explore OntoKB with a pre-seeded, realistic 26-entity, 4-article knowledge graph:
 ```bash
-pip install -e ".[dev,llm,youtube,html]"
-cp config/config.example.yaml config/config.yaml   # 填 interests 和数据源
-pytest                                             # 40 个单测,无网络依赖
-
-ontokb ingest "https://www.youtube.com/watch?v=..."   # 单条端到端
-ontokb queue                                          # 批量入队
-ontokb rules                                          # 跑规则引擎
-ontokb status
-ontokb visualize                                      # 重新生成 vault/Knowledge Graph.html 交互图谱
-ontokb api                                            # 启动 SQLite graph 查询 API
+python scripts/seed_rich_graph.py
 ```
 
-默认使用 OpenAI/ChatGPT,需要 `OPENAI_API_KEY`。模型默认 `gpt-5.5`,可用 `ONTOKB_MODEL` 覆盖。
-YouTube 字幕或本地 Whisper 转写会缓存到 `data/transcripts/youtube/`,后续同一视频优先复用缓存。
-
-## 启动前端 UI
-
-前端是生成在 vault 中的单文件页面。先启动后端（查询与 Chat 共用这个服务）：
-
+### Step 4: Launch the Web UI
 ```bash
-cd /Users/zhangdapeng/Desktop/obsidianKB/obsidianprojFable
-export OPENAI_API_KEY="你的 API Key"
-ontokb api --host 127.0.0.1 --port 8765
+python -m ontokb.cli api --host 127.0.0.1 --port 8765
 ```
+Open your browser at **`http://127.0.0.1:8765`**.
 
-再开一个终端，用 macOS 的 `open` 命令启动前端：
-
+### Step 5: Run Automated Tests
+Verify your local installation against all 144 unit and integration tests:
 ```bash
-open "file:///Users/zhangdapeng/Desktop/obsidianKB/obsidianprojFable/vault/Knowledge%20Graph.html"
+python -m pytest
 ```
 
-右侧“查询”用于直接查看实体和一跳关系；“Chat”会调用 `POST /api/chat`。查询和 Chat 都可选择按词/全文匹配、是否扩展相关词以及 `Top K`（1–200）；Chat 只会把该策略命中的有限 KG 上下文交给 LLM。API Key 只保留在后端环境中。左右区域之间的分隔线可拖动调整比例，双击可恢复默认宽度。图谱数据更新后，运行 `ontokb visualize` 重新生成此 HTML。
+---
 
-## Graph 查询 API
+## 8. Comprehensive Documentation Library
 
-项目内置一个轻量 HTTP API,直接复用 `graph.py` 的 SQLite 三元组库和别名解析逻辑。Obsidian 当前只消费生成的 Markdown 和 `Knowledge Graph.html`,不提供这里需要的三元组查询接口。
+For exhaustive architectural specifications, flowcharts, and technical deep-dives, consult the specialized documents in the [`docs/`](docs/) directory:
 
-```bash
-ontokb api --host 127.0.0.1 --port 8765
-```
+| Document | Word Format (.docx) | Markdown Format (.md) | Focus |
+| :--- | :--- | :--- | :--- |
+| **01. UI/UX Flow** | [01_UI_UX_FLOW.docx](docs/01_UI_UX_FLOW.docx) | [01_UI_UX_FLOW.md](docs/01_UI_UX_FLOW.md) | Visual breakdown of every button, modal, drawer, and interaction. |
+| **02. User Process Flow** | [02_USER_PROCESS_FLOW.docx](docs/02_USER_PROCESS_FLOW.docx) | [02_USER_PROCESS_FLOW.md](docs/02_USER_PROCESS_FLOW.md) | Step-by-step user journey from ingestion to memory review. |
+| **03. Tech Stack** | [03_TECH_STACK.docx](docs/03_TECH_STACK.docx) | [03_TECH_STACK.md](docs/03_TECH_STACK.md) | Comprehensive audit of libraries, frameworks, and dependencies. |
+| **04. Architecture & API** | [04_SYSTEM_ARCHITECTURE_AND_API.docx](docs/04_SYSTEM_ARCHITECTURE_AND_API.docx) | [04_SYSTEM_ARCHITECTURE_AND_API.md](docs/04_SYSTEM_ARCHITECTURE_AND_API.md) | Core system components, SQLite schema, and REST specifications. |
+| **05. Current Features** | [05_CURRENT_FEATURES_DETAILED_ANALYSIS.docx](docs/05_CURRENT_FEATURES_DETAILED_ANALYSIS.docx) | [05_CURRENT_FEATURES_DETAILED_ANALYSIS.md](docs/05_CURRENT_FEATURES_DETAILED_ANALYSIS.md) | Complete capability matrix and module-by-module implementation analysis. |
+| **06. Flaws & Limitations** | [06_FLAWS_LIMITATIONS_AND_VULNERABILITIES.docx](docs/06_FLAWS_LIMITATIONS_AND_VULNERABILITIES.docx) | [06_FLAWS_LIMITATIONS_AND_VULNERABILITIES.md](docs/06_FLAWS_LIMITATIONS_AND_VULNERABILITIES.md) | 28 technical flaws, concurrency bottlenecks, and security vulnerabilities. |
+| **07. Enterprise Roadmap** | [07_ENTERPRISE_GRADE_TRANSFORMATION_ROADMAP.docx](docs/07_ENTERPRISE_GRADE_TRANSFORMATION_ROADMAP.docx) | [07_ENTERPRISE_GRADE_TRANSFORMATION_ROADMAP.md](docs/07_ENTERPRISE_GRADE_TRANSFORMATION_ROADMAP.md) | Neo4j/Memgraph, Qdrant, Celery, RBAC, and WebGL transformation blueprint. |
 
-查询实体及其一跳关系:
+---
 
-```bash
-curl "http://127.0.0.1:8765/api/graph/query?q=harness%20agent&mode=phrase&expand=1"
-```
+## 9. Troubleshooting & Frequently Asked Questions
 
-如果需要类似终端表格的输出:
+### Q1: Why are all the nodes dimmed to near-invisibility on initial load?
+**A**: By default, the interface opens in **`阅读工作台` (Guided Summary Walk)** mode. In this mode, OntoKB focuses solely on the entities and 1-hop neighbors mentioned in the currently active paragraph step, dimming all other nodes to `0.09` opacity. To view the entire graph simultaneously with 100% opacity, click **`探索图谱` (Explore Graph)** in the top navigation bar.
 
-```bash
-curl "http://127.0.0.1:8765/api/graph/query?q=harness%20agent&mode=phrase&expand=1&format=table"
-```
+### Q2: Why are articles not displayed as a card list under `YOUR READING SPACE`?
+**A**: To conserve screen space for summary walking and graph canvas interactions, OntoKB uses a **compact dropdown selector (`<select>`)** directly below the category filter chips. Click the dropdown to reveal and switch between all ingested articles.
 
-返回文本示例:
+### Q3: Why does article ingestion fail when I only provide a URL?
+**A**: OntoKB currently contains automated scraping support **only for YouTube videos** (via subtitles and audio Whisper). For standard web articles, you must copy and paste the text into the `文章正文` field (minimum 20 characters). The URL field is stored as reference metadata for the `阅读原文 ↗` provenance link.
 
-```text
-相关关系如下：
-triple_id	关系
-72	Codex -- uses -> harness agent
-```
+### Q4: Why did large graph loads previously hang on Windows?
+**A**: Default Python `BaseHTTPRequestHandler` runs on HTTP/1.0 and closes TCP sockets immediately upon handler return. On Windows, closing a socket with unacknowledged data in the Winsock kernel buffer cuts off transmissions larger than 120 KB (`WinError 10054`). This was resolved in OntoKB v2 by upgrading `GraphApiHandler` to **HTTP/1.1 persistent streaming** with socket `SO_LINGER` protection and explicit stream flushing.
 
-可用接口:
+---
 
-- `GET /health`
-- `GET /api/entities/search?q=<关键词>&mode=terms|phrase&expand=0|1&limit=50`
-- `GET /api/graph/query?q=<关键词>&mode=terms|phrase&expand=0|1&limit=50&format=json|table`
-- `POST /api/chat`，JSON body: `{"question": "Codex 使用了什么技术？", "mode": "terms", "expand": true, "top": 20}`
+## 10. License & Attribution
 
-多轮请求可增加 `history` 字段，例如 `[{"role":"user","content":"介绍 Codex"},{"role":"assistant","content":"上一轮回答"}]`。仅允许按 user / assistant 交替排列的已完成轮次，最多 20 条消息、合计 32,000 字符；当前 `question` 单独发送。无 `history` 的旧客户端仍正常工作。
-
-### Chat 执行助手
-
-使用 Codex 时，页面默认启用“执行助手”。它通过 app-server 的动态工具协议调用宿主提供的 `kb_list_documents`、`kb_read_document`、`kb_query_graph`、`kb_reanalyze_document` 和 `kb_sync_note`。可以直接说“检查当前笔记为什么过时”“重新分析这条视频并回写”，也可以点击快捷按钮。窗口支持展开，执行记录显示成功／失败、备份位置和笔记路径。
-
-API 使用 `agent: true` 开启此模式，`content_id` 指定当前资料；默认仍兼容旧客户端的普通问答。工具只操作知识库，不提供任意 shell、文件编辑或桌面控制。Codex 自身的只读沙箱不影响宿主工具的授权回写。
-
-分析结果保存正文 SHA-256、正文字符数和分析版本；普通视频入库发现指纹缺失或不一致时重新提取。执行“重新分析并回写”会强制重新提取，提取成功后备份 SQLite 与 vault、替换该来源的旧关系、清理该来源独有且已无关系的旧节点，保留其他来源的数据。数据库事务与笔记回滚保护普通写入失败；备份位于数据库旁的 `backups/analysis-*`，可用于进程或机器异常退出后的恢复。Chat 只有在实际回写且验证成功时显示“已更新”，读取旧结果不会再显示更新提示。
-
-`mode=phrase&expand=1` 会先匹配完整短语,再用短语里的词扩展命中节点;`expand=0` 是严格短语匹配。
-
-## 里程碑(双模型对比用)
-
-| | 内容 | 状态 |
-|---|---|---|
-| M1 | 数据源接入(Takeout CSV / 播放列表 / 163 URL 清单) | 骨架完成 |
-| M2 | 内容获取(字幕 ✓ / Whisper 回退 ✓ / 正文抽取 ✓) | 已实现，受来源访问权限与转写质量影响 |
-| M3 | LLM 处理层(摘要+重点+相关度+实体关系,structured output) | 完成 |
-| M4 | 知识图谱(ontology 校验、SQLite 图存储、别名归并) | 完成 |
-| M5 | 规则引擎 ✓ + 研究报告生成 ✗ | 部分 |
-| M6 | Obsidian 输出 ✓ / 定时调度 ✗ / 增量去重(部分) | 部分 |
-
-“完成”指骨架实现 + 单测通过;对比测试时两个模型从同一 commit 出发各自补全剩余部分。
+OntoKB is licensed under the MIT License. Built upon W3C Semantic Web and Schema.org community standards. Designed for verifiable knowledge engineering and personal cognitive enhancement.

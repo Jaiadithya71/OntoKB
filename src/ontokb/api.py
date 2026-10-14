@@ -48,11 +48,20 @@ def run_api(
 
 
 class GraphApiHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
     store: GraphStore
     editor_vault_path: str | Path | None = None
     llm_provider: str | None = None
     llm_model: str | None = None
     llm_fallback_model: str | None = None
+
+    def setup(self):
+        super().setup()
+        try:
+            import socket, struct
+            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 5))
+        except Exception:
+            pass
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -67,6 +76,7 @@ class GraphApiHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
                 self.wfile.write(payload)
+                self.wfile.flush()
             elif parsed.path == "/health":
                 provider = (os.environ.get("ONTOKB_LLM_PROVIDER") or self.llm_provider or "openai").lower()
                 from .codex_backend import executable
@@ -390,6 +400,7 @@ class GraphApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+        self.wfile.flush()
 
     def _send_text(self, body: str, status: HTTPStatus = HTTPStatus.OK) -> None:
         payload = body.encode("utf-8")
@@ -399,6 +410,7 @@ class GraphApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+        self.wfile.flush()
 
 
 def _one(params: dict[str, list[str]], name: str, default: str) -> str:

@@ -1,0 +1,60 @@
+# System Requirements — English
+
+Date: 2026-09-28. Status: proposed acceptance baseline based on static repository inspection; not a statement that these requirements already pass. The Chinese version uses identical IDs. P0 = required before a production pilot; P1 = required for general rollout. Accuracy metrics and release gates are specified separately in the accuracy improvement requirements.
+
+## Product objective
+
+Provide employees with evidence-based Japanese/English answers from their organization's approved policies, while enabling authorized policy owners to manage documents and resolve unanswered questions. Generated Japanese sample policies are demonstration data, not authentic Thirdwave regulations.
+
+## Current implementation references
+
+- **E1:** `ui-2/src/App.tsx`, `ui-2/src/components/chat/ChatInterface.tsx`, `ui-2/src/components/shared/UserDocumentsView.tsx` — UI foundations.
+- **E2:** `api/src/service/rbac.ts`, `api/src/routes/file.ts`, `api/src/controller/auth.ts`, `api/src/controller/ssoAuth.ts` — authentication/access foundations.
+- **E3:** `api/src/controller/file.ts`, `api/src/service/fileUploadService.ts`, `api/src/ragclass/splitByArticleWithHybridSearch.ts`, `rag/utils/text_extraction.py` — ingestion foundations with format differences.
+- **E4:** `api/src/queue/chatGenProcess.ts`, `api/src/rag/pipeline/ragPipeline.ts`, `api/src/rag/generation/`, `api/src/rag/retrieval/` — RAG/answer foundations.
+- **E5:** `api/src/service/languageRouting.ts`, `ui-2/src/context/LanguageContext.tsx` — Japanese/English language foundations.
+- **E6:** `api/src/service/historyPersistenceService.ts`, `api/src/service/supportTicketService.ts`, `api/src/service/triageService.ts`, `api/src/service/analyticsService.ts`, `api/src/service/notificationService.ts` — workflow foundations.
+- **E7:** `docker-compose.yml`, `api/src/db/adapter.ts`, `api/src/routes/health.ts`, `api/src/rag/telemetry/`, `api/package.json` — operations/evaluation foundations.
+
+“Foundation” means relevant source exists; full behavior and acceptance remain to be demonstrated.
+
+## Functional requirements
+
+| ID / priority | Requirement and current basis | Acceptance criterion |
+|---|---|---|
+| FR-01 / P0 | Authenticate users and resolve server-side identity, department and role. Basis: E2. | Local-login and configured SSO test accounts can sign in; invalid/expired credentials are rejected; account disablement removes access; client-supplied roles cannot elevate privilege. |
+| FR-02 / P0 | Enforce one approved permission matrix across chat, retrieval, documents, previews, downloads, history, exports, support and cache. Basis: E2; cross-path isolation requires validation. | Tests for all six code-defined roles cover allowed and denied operations, guessed file IDs and direct API requests. Supervisory administrators cannot write; HR administrator broad rights are explicitly approved by the business owner. No unauthorized text or metadata is returned. |
+| FR-03 / P0 | Manage policy metadata: organization, document ID, title, owner, version, effective dates, status, department, employee category, confidentiality and synthetic/official flag. Existing metadata is only a starting point: E3. | A policy cannot be published without required metadata; each retrieved chunk retains the parent identity and version. Draft, retired, future-effective or different-company rules are excluded from default current-policy answers. |
+| FR-04 / P0 | Establish an explicit supported-format contract and reliable ingestion status. Basis: E3; current allow-lists differ. | PDF, DOCX, TXT and MD fixtures pass the selected end-to-end path; unsupported formats fail before publication with actionable messages. Japanese text, article numbers, lists and tables remain usable. Scanned PDFs are either OCR-processed with validation or rejected as requiring OCR. A failed extraction/index operation never appears as ready. |
+| FR-05 / P0 | Publish, revise, withdraw and delete policies consistently across metadata, file storage, Solr, vectors and any enabled caches. Basis: E3/E4; complete lifecycle proposed. | A replacement becomes searchable only when all required indexes are ready; a rollback restores the prior active version; withdrawal/deletion immediately removes answer eligibility and leaves an auditable state. Repeating a job does not duplicate active content. |
+| FR-06 / P0 | Answer with eligible evidence and precise source references. Basis: E4. | Every substantive policy claim has supporting document/version and article or page evidence; the source preview opens the same authorized passage. Numeric amounts, deadlines, eligibility and exceptions match that evidence. Detailed score gates follow the accuracy document. |
+| FR-07 / P0 | Clarify missing employee/category/date information, abstain when evidence is insufficient, and expose unresolved policy conflicts. Basis: E4; completeness proposed. | Dedicated cases for unknown company, employee class, historical date, missing evidence and contradictory rules produce clarification, an evidence-limited response or HR escalation, not invented policy. |
+| FR-08 / P0 | Support Japanese and English questions and answers without changing policy meaning. Basis: E5. | A bilingual regression set preserves names, numbers, dates, negation and eligibility; Japanese source citations remain inspectable from English answers. Unsupported languages receive an explicit product behavior. Chinese-language support is not assumed. |
+| FR-09 / P1 | Persist user-scoped history and collect feedback with an evidence trail. Basis: E6. | Users see only authorized conversations; each feedback item links the exact query, answer, source/version set and processing trace. Retention/deletion follows an approved policy; export respects identical permissions. |
+| FR-10 / P1 | Route unresolved questions to the appropriate HR/GA/ACC owner, with assignment and resolution visibility. Basis: E6. | A feedback/escalation case creates one traceable ticket; authorized owners can assign and resolve it; the user can observe status. Ticket content is not automatically promoted to policy or cache truth. |
+| FR-11 / P1 | Provide scoped analytics, notifications and document administration. Basis: E1/E6. | Administrators can inspect upload failures, unanswered categories and quality trends within their scope; notifications reach intended users only; aggregate views avoid unnecessary personal information. |
+| FR-12 / P0 | Isolate generated Japanese demonstration policies from authentic company knowledge. Proposed corpus governance. | Every sample carries an unambiguous Japanese synthetic-data notice and synthetic metadata; tests use a separate namespace/collection or equally enforced filter. Production cannot select samples as official evidence. |
+| FR-13 / optional | Permit Agentic RAG as an evaluated alternative: bounded planning, evidence retrieval, answer verification and fallback to the validated baseline. This is a proposed option, not a claim of current implementation. | If selected, document the agent's permitted tools, maximum steps/retries, time/token/cost budgets and termination conditions. Test successful retrieval, insufficient/conflicting evidence, malicious document instructions, tool failure and exhausted budgets. All actions retain the same identity/document permissions; no unrestricted external retrieval or policy modification is permitted. Failure produces a traceable baseline fallback or evidence-limited refusal. Compare against the same frozen baseline suite and meet the accuracy document's gates before enabling. If not selected, record the decision; baseline RAG remains an acceptable delivery. |
+| FR-14 / optional | Allow a harness-neutral implementation, including evaluation of a Codex harness as a candidate. Separate the development/test harness from the production RAG agent runtime. No particular harness is mandatory. | If selected, identify the exact harness/version, purpose, supported integration interface, data boundary and execution permissions, and demonstrate these in the target environment. A development harness may assist implementation/testing without becoming a production dependency. A production harness must independently satisfy authentication, isolation, bounded execution, audit, recovery and release gates. Record the selection rationale, operational dependencies and replacement/fallback path; do not assume product capabilities from its name. If no harness is selected, document that decision and deliver the validated baseline. |
+## Nonfunctional requirements
+
+| ID / priority | Requirement | Acceptance criterion |
+|---|---|---|
+| NFR-01 / P0 | Reproducible configuration and model/index compatibility. Basis: E7. | Each deployment/evaluation records effective model ID, embedding model and dimension, pipeline flags, prompt version, corpus hash and index version. Startup detects incompatible embeddings/indexes; rebuilds are deliberate and verifiable. README and deployment guidance agree with the tested configuration. |
+| NFR-02 / P0 | Secure processing of documents and prompts. | Tests cover malicious filenames, oversized files, unsupported content, prompt injection inside documents, privilege escalation and unauthorized source access. Retrieved text is treated as evidence, never as executable instructions. Secrets are absent from client bundles and normal logs. |
+| NFR-03 / P0 | Privacy and external-model data handling. | The owner approves what policy/user data may leave the environment, applicable retention and log access. The system minimizes/redacts sensitive logs and honors configured retention; test users' deleted data is no longer accessible through history or exports. |
+| NFR-04 / P0 | Defined service-level objectives under a documented workload. | Before pilot, owner signs off concurrency, corpus size, hardware, maximum request duration, p95 first-response/full-answer latency and error-rate targets. A load report records actual results, cold/warm behavior and dependency failures. No unsupported latency promise is made in this analysis. |
+| NFR-05 / P0 | Recoverable processing and dependency failure. Basis: E7. | Injected database, Redis, Solr, vector-service and model failures yield a clear recoverable state without fabricated answers or falsely completed uploads. Bounded retries and duplicate-job prevention are demonstrated. |
+| NFR-06 / P0 | Observability and auditability. Basis: E6/E7. | A request ID connects ingestion/retrieval/generation events; logs capture timings, source IDs, effective pipeline branch and refusal/error reasons without unnecessary raw personal content. Authorized administrators can investigate a failed answer. |
+| NFR-07 / P1 | Backup and restoration. | An agreed recovery-time and recovery-point objective is demonstrated by restoring metadata, documents and compatible indexes in an isolated environment, then confirming permissions and representative answers. |
+| NFR-08 / P0 | Quality and release control. | Run the frozen regression suite and accuracy gates before release; store reproducible reports; block release for authorization leaks, official/synthetic contamination, or critical unsupported policy claims. Changed models, chunking, prompts and indexes trigger reevaluation. |
+
+## Delivery and sign-off
+
+P0 approval requires a policy-owner-approved corpus and permission matrix, traceable acceptance results, accuracy-gate results, operational configuration and rollback instructions. P1 approval additionally requires support workflow, analytics, retention/export validation and restore evidence. Repository code inspection is not a substitute for these artifacts. Business owners must still supply authentic Thirdwave documents, effective dates, employee classes, retention rules and operational targets.
+
+
+The definitive project objectives, required deliverables, and Definition of Done are specified in [Delivery and DoD](04_delivery_DoD_EN.md). Optional Agentic RAG or harness choices do not relax those obligations or the accuracy gates.
+
+
+

@@ -1,0 +1,141 @@
+{
+  "inspection_date": "2026-09-28",
+  "method": "Selected static file inspection; no runtime tests or migration",
+  "local_source_files": [
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\README.md",
+      "sha256": "54242ad559f83096447c7f6213d4105dfa2418777563ab0f575fc80df73ebbc6"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\docs\\PRD.md",
+      "sha256": "42c05cf8f554bc60559d7905dfae93d6eaa8b6993121a2bdc0dcda60ac9501ca"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\docs\\ontology-analysis.zh-CN.md",
+      "sha256": "90f466910726bb54b9c184bfe246df9f8e2e096c19378450b2c113d9026d96f2"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\ontology\\core.yaml",
+      "sha256": "de0643f875b8cf46ed716ed4d60cb118122dd2b07fd75867a022ac9203c9da70"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\src\\ontokb\\ontology.py",
+      "sha256": "988a221faef30c3cf37fb303b38afc4863540075333871380e3b8134ca6e591a"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\src\\ontokb\\graph.py",
+      "sha256": "5494b98cb699eea2257272aef21bfebd53ae7bb61a4c0b8ce71aa361203e0d52"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\src\\ontokb\\memory.py",
+      "sha256": "9142c2c54545a5b24741296caa9aae9a6638959afe35d4e28b5f4d6e92c4063b"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\src\\ontokb\\rules.py",
+      "sha256": "13556a3499a725e593cb5a5a9b464907db41948e04462b55856f3d1ea9d2a5df"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\src\\ontokb\\codex_backend.py",
+      "sha256": "67f8d08ce1ff486e8f18638d4d89364ddcb5fd0a220eac4dc925a489737e1656"
+    },
+    {
+      "path": "C:\\Users\\10042\\Documents\\ontoKB\\src\\ontokb\\knowledge_agent.py",
+      "sha256": "644f6df2c991ab00ffe71288ae5a6b5894c56d8ef5f64a4c88ee3d36db8333e0"
+    }
+  ],
+  "archives": [
+    {
+      "path": "C:\\Users\\10042\\Downloads\\chennai-training\\logos-code.zip",
+      "sha256": "06f50aa1abe266215a81a0da6386e7c76639cac8dcff47c18c10966983cc1c52",
+      "inspected_entries": [
+        {
+          "path": "logos-code/README.md",
+          "sha256": "89efba3b9d74b74639c3b17b0c60b653a31f20fc3cd5a3d7d7ddc9651d199f18"
+        },
+        {
+          "path": "logos-code/packages/domain/src/domain-contract.ts",
+          "sha256": "58905ace79294242f0ebaa6aa7de2aa380ee3ba366711916399facfcd3864404"
+        },
+        {
+          "path": "logos-code/packages/domain/src/ontology-runtime.test.ts",
+          "sha256": "e3d43e78e32e31b839d0a15fb8565f69cb0ea6eb48b05a942c7af17d31a53ee9"
+        },
+        {
+          "path": "logos-code/packages/domain/src/customer-support/ontology/object-types.ts",
+          "sha256": "48c20fc3ee6ea84b149ac6fd9ebadf6da0778c60307a6edaf5df2dbfda9a3b5e"
+        },
+        {
+          "path": "logos-code/packages/domain/src/customer-support/ontology/action-types.ts",
+          "sha256": "cef8883edc3c81cf72fb99c9842dead2151e1a8f8fd1e18b3f0b3a71cb295dca"
+        },
+        {
+          "path": "logos-code/packages/domain/src/customer-support/ontology/state-models.ts",
+          "sha256": "7ae769bd1731e759216d5a24567e8f89bd65c1e11372b576664d50c0c979414e"
+        },
+        {
+          "path": "logos-code/packages/domain/src/customer-support/ontology/policy-bindings.ts",
+          "sha256": "83d87598ca327d402cc1cccc72d74464d208390619a46d762b48b085a1accc2e"
+        },
+        {
+          "path": "logos-code/packages/domain/src/customer-support/ontology/source-authority.ts",
+          "sha256": "5986a62eb7ec9150e02040e2baa73eeb4c56346c82ecf937e4788ac1ab877a1f"
+        },
+        {
+          "path": "logos-code/packages/platform/src/index.ts",
+          "sha256": "e461727d06bffab19b37c417e72d7467e93e2527dc8709c4b4af9a661b8b3499"
+        },
+        {
+          "path": "logos-code/services/runtime/src/domains/customer-support/routes.ts",
+          "sha256": "87cf13b8250829342586311840e49a06bf42c3fa1ce5c199dab6eb264fad80dd"
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\10042\\Downloads\\chennai-training\\tebis-teams-meeting.zip",
+      "sha256": "7f86b832697bd9bda605ba109c5d9846cc3e011451bc35cbde2ac4435690d856",
+      "inspected_entries": [
+        {
+          "path": "tebis-teams-meeting-merged-ontlogies-work-optimizationv0/contracts/ontology/action_types.yaml",
+          "sha256": "e1f147d6a258ce3c3c242f74c06f1fce7bfab25c0db7b2385a62096574953685"
+        },
+        {
+          "path": "tebis-teams-meeting-merged-ontlogies-work-optimizationv0/contracts/ontology/entity_registry.yaml",
+          "sha256": "a8060c3f28f6f66107b5acccc744353d7892de7b7149ed93b43cccb7fb3c499e"
+        },
+        {
+          "path": "tebis-teams-meeting-merged-ontlogies-work-optimizationv0/contracts/ontology/knowledge_lifecycle.yaml",
+          "sha256": "d7574b03a180e7f715f103c0287a196d067fb78638c90a895a24d7a65a0de879"
+        },
+        {
+          "path": "tebis-teams-meeting-merged-ontlogies-work-optimizationv0/contracts/ontology/README.md",
+          "sha256": "1b50818240d0c3e60803fed72099fc42fa98d3287fb92f5b7b2b32153b8fbddd"
+        },
+        {
+          "path": "tebis-teams-meeting-merged-ontlogies-work-optimizationv0/tebis-bcl/app/router/action_items.py",
+          "sha256": "ee51162ce39f56df820a8bb4a13800cf2d3f3edc28f4b80b6f992d7023b1072b"
+        },
+        {
+          "path": "tebis-teams-meeting-merged-ontlogies-work-optimizationv0/buildtime-agent/agents/autoschemakg-meeting-agent/pipeline.py",
+          "sha256": "9b4b4c6f1276ece58067a12b9bccb99e40f8367671a0dda0e8dd64fada0d955a"
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "path": "C:\\Users\\Admin\\WhisperLive\\docs\\PROJECT_REQUIREMENTS_EN.md",
+      "sha256": "146e361e5ab265fb4a02299e99c9bd26858ebebc635495c809cc140c59977381"
+    },
+    {
+      "path": "C:\\Users\\Admin\\WhisperLive\\docs\\PROJECT_REQUIREMENTS_ZH.md",
+      "sha256": "7524aa234e909b1c6d7906db82ebcd24d6884a4b7861c418567fa5e72c4aaca0"
+    }
+  ],
+  "official_urls": [
+    "https://www.palantir.com/docs/foundry/ontology/overview",
+    "https://www.palantir.com/docs/foundry/action-types/overview",
+    "https://www.palantir.com/docs/foundry/object-permissioning/overview",
+    "https://developers.openai.com/blog/codex-as-a-platform",
+    "https://learn.chatgpt.com/docs/app-server"
+  ]
+}

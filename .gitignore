@@ -24,3 +24,7 @@ vault/**
 !vault/**/.gitkeep
 # Historical tracked takeout.csv is unchanged; prevent other local exports.
 config/*takeout*.csv
+
+# Temporary build scripts and zip archives
+.work/
+*.zip

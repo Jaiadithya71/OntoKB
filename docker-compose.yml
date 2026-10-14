@@ -1,0 +1,20 @@
+services:
+  ontokb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ontokb:latest
+    container_name: ontokb-app
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./data:/app/data
+      - ./vault:/app/vault
+      - ./config:/app/config
+    environment:
+      - PYTHONUTF8=1
+      - ONTOKB_LLM_PROVIDER=codex
+      # Optional: set API keys for OpenAI / Anthropic when not using local codex
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    restart: unless-stopped
