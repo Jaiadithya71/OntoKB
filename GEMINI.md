@@ -22,11 +22,12 @@
 
 ---
 
-## 3. Team Structure & Strategic Positioning
-* **Team Members**:
-  * **Pooja**: Project Leader / Tech Lead
-  * **Jaiadithya**: Core Developer
-  * **Balachandra**: QA Engineer
+## 3. Team Structure, Hours Allocation & Strategic Positioning
+* **Team Members & Allocation (Option B: 80h per member, 240h total)**:
+  * **Pooja**: Project Leader / Tech Lead (80 person-hours)
+  * **Jaiadithya**: Core Developer (80 person-hours)
+  * **Balachandra**: QA Engineer (80 person-hours)
+  * **Total Team Effort**: 240 person-hours across a 9-week sprint (19 Oct 2026 – 18 Dec 2026).
 * **Operational Model**:
   * We are developing **Alternative B (Decoupled Action-Centric Runtime & Epistemic Layer)** in parallel with Subteam 1 (Alternative A: Workbench Scaffolding) to evaluate practical enterprise usefulness.
   * **External Secrecy**: Never disclose pre-existing test verification or pre-built code in external proposals or presentations. Testing is presented as standard planned validation in Phase 4.
